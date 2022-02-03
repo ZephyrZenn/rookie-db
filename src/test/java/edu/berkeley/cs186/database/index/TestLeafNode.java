@@ -110,7 +110,7 @@ public class TestLeafNode {
         LeafNode leaf = getEmptyLeaf(Optional.empty());
 
         List<Pair<DataBox, RecordId>> data = new ArrayList<>();
-        for (int i = 0; i < (int) Math.ceil(1.5 * d * fillFactor); ++i) {
+        for (int i = 0; i < (int) Math.ceil(2 * d * 0.6); ++i) {
             DataBox key = new IntDataBox(i);
             RecordId rid = new RecordId(i, (short) i);
             data.add(i, new Pair<>(key, rid));

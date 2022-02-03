@@ -94,7 +94,7 @@ abstract class BPlusNode {
      *
      * When a leaf splits, it returns the first entry in the right node as the
      * split key. In this example, 3 is the split key. After leaf0 splits, inner
-     * inserts the new key and child pointer into itself and hits case 0 (i.e. it
+     * inserts the new key and child pointer into itself and hits case 1 (i.e. it
      * does not overflow). The tree looks like this:
      *
      *                          inner
