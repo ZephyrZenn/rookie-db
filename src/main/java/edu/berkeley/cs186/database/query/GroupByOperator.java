@@ -75,7 +75,11 @@ class GroupByOperator extends QueryOperator {
 
     @Override
     public int estimateIOCost() {
-        return this.getSource().estimateIOCost();
+        int numBuffers = this.transaction.getWorkMemSize();
+        int N = getSource().estimateStats().getNumPages();
+        double pass0Runs = Math.ceil(N / (double)numBuffers);
+        double numPasses = 1 + Math.ceil(Math.log(pass0Runs) / Math.log(numBuffers - 1));
+        return (int) (2 * N * numPasses) + getSource().estimateIOCost();
     }
 
     /**

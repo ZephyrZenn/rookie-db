@@ -48,9 +48,9 @@ public class SortOperator extends QueryOperator {
     @Override
     public int estimateIOCost() {
         int N = getSource().estimateStats().getNumPages();
-        double pass0Runs = Math.ceil(N / numBuffers);
+        double pass0Runs = Math.ceil(N / (double)numBuffers);
         double numPasses = 1 + Math.ceil(Math.log(pass0Runs) / Math.log(numBuffers - 1));
-        return (int) (2 * N * numPasses);
+        return (int) (2 * N * numPasses) + getSource().estimateIOCost();
     }
 
     @Override

@@ -84,6 +84,7 @@ public class BNLJOperator extends JoinOperator {
          * do nothing.
          *
          * You may find QueryOperator#getBlockIterator useful here.
+         * Make sure you pass in the correct schema to this method.
          */
         private void fetchNextLeftBlock() {
             // TODO(proj3_part1): implement
@@ -98,6 +99,7 @@ public class BNLJOperator extends JoinOperator {
          * do nothing.
          *
          * You may find QueryOperator#getBlockIterator useful here.
+         * Make sure you pass in the correct schema to this method.
          */
         private void fetchNextRightPage() {
             // TODO(proj3_part1): implement
