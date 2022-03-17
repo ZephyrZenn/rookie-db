@@ -23,7 +23,9 @@ import java.net.Socket;
  *
  * To use RookieDB in Server mode, run the main function in this file. This
  * will start a server that waits on port 18600 on your local machine. Then,
- * use a utility like `netcat` or `nc` to open a connection, i.e.:
+ * run `python client.py` in the root of the project directory (needs Python 3)
+ *
+ * Alternatively, use a utility like `netcat` or `nc` to open a connection, i.e.:
  * - `netcat localhost 18600`
  * - `nc localhost 18600` (depending on how netcat is installed)
  * - `ncat localhost 18600` (For window users. May need to download first)
