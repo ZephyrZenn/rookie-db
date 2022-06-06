@@ -148,7 +148,7 @@ class LeafNode extends BPlusNode {
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
 
-        return null;
+        return this;
     }
 
     // See BPlusNode.getLeftmostLeaf.
@@ -156,7 +156,7 @@ class LeafNode extends BPlusNode {
     public LeafNode getLeftmostLeaf() {
         // TODO(proj2): implement
 
-        return null;
+        return this;
     }
 
     // See BPlusNode.put.
@@ -164,7 +164,28 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
 
-        return Optional.empty();
+        if (getKey(key).isPresent()) {
+            throw new BPlusTreeException("error");
+        }
+        int d = metadata.getOrder();
+        int index = InnerNode.numLessThanEqual(key, keys);
+        keys.add(index, key);
+        rids.add(index, rid);
+        if (keys.size() < 2*d+1) {
+            sync();
+            return Optional.empty();
+        }
+        List<DataBox> leftKeys = keys.subList(0, d);
+        List<RecordId> leftRids = rids.subList(0, d);
+        List<DataBox> rightKeys = keys.subList(d, 2*d+1);
+        List<RecordId> rightRids = rids.subList(d, 2*d+1);
+
+        LeafNode right = new LeafNode(metadata, bufferManager, rightKeys, rightRids, rightSibling, treeContext);
+        this.keys = leftKeys;
+        this.rids = leftRids;
+        rightSibling = Optional.of(right.getPage().getPageNum());
+        sync();
+        return Optional.of(new Pair<DataBox, Long>(rightKeys.get(0), right.getPage().getPageNum()));
     }
 
     // See BPlusNode.bulkLoad.
@@ -172,15 +193,42 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
-
+        int d = metadata.getOrder();
+        float limit = 2 * d * fillFactor;
+        while (data.hasNext()) {
+            Pair<DataBox, RecordId> pair = data.next();
+            DataBox key = pair.getFirst();
+            RecordId rid = pair.getSecond();
+            keys.add(key);
+            rids.add(rid);
+            if (keys.size() - limit <= 0.001) {
+                continue;
+            }
+            DataBox ret = keys.remove(keys.size() - 1);
+            RecordId recordId = rids.remove(rids.size() - 1);
+            LeafNode right = new LeafNode(metadata, bufferManager, new ArrayList<>(List.of(ret)), new ArrayList<>(List.of(recordId)), rightSibling, treeContext);
+            rightSibling = Optional.of(right.getPage().getPageNum());
+            sync();
+            return Optional.of(new Pair<>(ret, right.getPage().getPageNum()));
+        }
+        sync();
         return Optional.empty();
     }
+
+
 
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
+        Optional<RecordId> r = getKey(key);
+        if (r.isEmpty()) {
+            return;
+        }
         // TODO(proj2): implement
-
+        int index = InnerNode.numLessThan(key, keys);
+        keys.remove(index);
+        rids.remove(index);
+        sync();
         return;
     }
 
@@ -376,8 +424,21 @@ class LeafNode extends BPlusNode {
         // Note: LeafNode has two constructors. To implement fromBytes be sure to
         // use the constructor that reuses an existing page instead of fetching a
         // brand new one.
+        Page page = bufferManager.fetchPage(treeContext, pageNum);
+        Buffer buf = page.getBuffer();
 
-        return null;
+        byte nodeType = buf.get();
+        assert (nodeType == (byte) 1);
+        long rightSibling = buf.getLong();
+        int size = buf.getInt();
+
+        List<DataBox> keys = new ArrayList<>();
+        List<RecordId> rids = new ArrayList<>();
+        for (int i = 0; i < size; ++i) {
+            keys.add(DataBox.fromBytes(buf, metadata.getKeySchema()));
+            rids.add(RecordId.fromBytes(buf));
+        }
+        return new LeafNode(metadata, bufferManager, page, keys, rids, Optional.ofNullable(rightSibling == -1 ? null : rightSibling), treeContext);
     }
 
     // Builtins ////////////////////////////////////////////////////////////////
