@@ -440,6 +440,7 @@ public class TestBPlusTree {
                     tree.put(keys.get(i), rids.get(i));
                 }
 
+//                tree.toDotPDFFile("test");
                 // Test get.
                 for (int i = 0; i < keys.size(); ++i) {
                     assertEquals(Optional.of(rids.get(i)), tree.get(keys.get(i)));

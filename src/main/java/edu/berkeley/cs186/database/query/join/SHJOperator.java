@@ -87,6 +87,7 @@ public class SHJOperator extends JoinOperator {
      * @param rightRecords An iterable of records from the right relation
      */
     private void buildAndProbe(Partition partition, Iterable<Record> rightRecords) {
+
         if (partition.getNumPages() > this.numBuffers - 2) {
             throw new IllegalArgumentException(
                     "The records in this partition cannot fit in B-2 pages of memory."

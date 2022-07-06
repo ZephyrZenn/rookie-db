@@ -87,6 +87,15 @@ public class BNLJOperator extends JoinOperator {
          * Make sure you pass in the correct schema to this method.
          */
         private void fetchNextLeftBlock() {
+            // 左表遍历完毕，退出
+            if (!leftSourceIterator.hasNext()) {
+//                leftRecord = null;
+                return;
+            }
+            int limit = numBuffers - 2;
+            this.leftBlockIterator = getBlockIterator(leftSourceIterator, getLeftSource().getSchema(), limit);
+            this.leftBlockIterator.markNext();
+            leftRecord = leftBlockIterator.next();
             // TODO(proj3_part1): implement
         }
 
@@ -103,6 +112,12 @@ public class BNLJOperator extends JoinOperator {
          */
         private void fetchNextRightPage() {
             // TODO(proj3_part1): implement
+            if (!rightSourceIterator.hasNext()) {
+                return;
+            }
+
+            this.rightPageIterator = getBlockIterator(rightSourceIterator, getRightSource().getSchema(), 1);
+            this.rightPageIterator.markNext();
         }
 
         /**
@@ -115,7 +130,70 @@ public class BNLJOperator extends JoinOperator {
          */
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
-            return null;
+//            while (leftRecord != null || leftSourceIterator.hasNext()) {
+//                // 左表数据块迭代器与右表所有的页迭代器的循环
+//                while (rightSourceIterator.hasNext() || rightPageIterator.hasNext()) {
+//                    // 针对某一块左表记录的循环
+//                    while (leftRecord != null) {
+//                        // 针对某一左表记录的循环
+//                        // 扫描右表当前页的记录，寻找匹配
+//                        while (rightPageIterator.hasNext()) {
+//                            Record rightRecord = rightPageIterator.next();
+//                            if (compare(this.leftRecord, rightRecord) == 0) {
+//                                return leftRecord.concat(rightRecord);
+//                            }
+//                        }
+//                        // 换到下一个左表记录
+//                        leftRecord = leftBlockIterator.hasNext() ? leftBlockIterator.next() : null;
+//                        // 重置右表迭代器
+//                        rightPageIterator.reset();
+//                        rightPageIterator.markNext();
+//                    }
+//                    // 重置左表迭代器
+//                    leftBlockIterator.reset();
+//                    leftBlockIterator.markNext();
+//                    leftRecord = leftBlockIterator.hasNext() ? leftBlockIterator.next() : null;
+//                    // 获取新的右表迭代器
+//                    fetchNextRightPage();
+//                }
+//                // 获取新的左表块迭代器
+//                fetchNextLeftBlock();
+//                // 重置整个右表迭代器
+//                rightSourceIterator.reset();
+//                rightSourceIterator.markNext();
+//                // 重新获取右表迭代器
+//                fetchNextRightPage();
+//            }
+//            return null;
+
+            // 上方的写法看上去差不多，但是如果被驱动表被读取完毕，而驱动表块迭代器没有迭代完，就会直接去fetch下一个驱动表块迭代器
+            // 其判断逻辑为：先看驱动表有没有剩余数据，再看被驱动表有无剩余数据，然后检查驱动表块有无剩余数据，最后匹配。
+            // 因为被驱动表必定会先被读完，因此每块只有第一个数据能完整探索被驱动表
+            while (true) {
+
+                if (rightPageIterator.hasNext()) {
+                    Record rightRecord = rightPageIterator.next();
+                    if (compare(leftRecord, rightRecord) == 0) {
+                        return leftRecord.concat(rightRecord);
+                    }
+                } else if (leftBlockIterator.hasNext()) {
+                    leftRecord = leftBlockIterator.next();
+                    rightPageIterator.reset();
+                    rightPageIterator.markNext();
+                } else if (rightSourceIterator.hasNext()) {
+                    fetchNextRightPage();
+                    leftBlockIterator.reset();
+                    leftBlockIterator.markNext();
+                    leftRecord = leftBlockIterator.next();
+                } else if (leftSourceIterator.hasNext()) {
+                    fetchNextLeftBlock();
+                    rightSourceIterator.reset();
+                    rightSourceIterator.markNext();
+                    fetchNextRightPage();
+                } else {
+                    return null;
+                }
+            }
         }
 
         /**

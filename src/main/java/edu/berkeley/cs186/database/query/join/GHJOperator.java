@@ -71,6 +71,19 @@ public class GHJOperator extends JoinOperator {
         // You may find the implementation in SHJOperator.java to be a good
         // starting point. You can use the static method HashFunc.hashDataBox
         // to get a hash value.
+
+        for (Record record : records) {
+            int columnIndex = left ? getLeftColumnIndex() : getRightColumnIndex();
+            DataBox columnValue = record.getValue(columnIndex);
+            int hash = HashFunc.hashDataBox(columnValue, pass);
+
+            int index = hash % partitions.length;
+            if (index < 0) {
+                index += partitions.length;
+            }
+            partitions[index].add(record);
+        }
+
         return;
     }
 
@@ -112,6 +125,32 @@ public class GHJOperator extends JoinOperator {
         // You shouldn't refer to any variable starting with "left" or "right"
         // here, use the "build" and "probe" variables we set up for you.
         // Check out how SHJOperator implements this function if you feel stuck.
+
+        Map<DataBox, List<Record>> hashTable = new HashMap<>();
+        for (Record buildRecord : buildRecords) {
+            DataBox buildJoinValue = buildRecord.getValue(buildColumnIndex);
+            if (!hashTable.containsKey(buildJoinValue)) {
+                hashTable.put(buildJoinValue, new ArrayList<>());
+            }
+            hashTable.get(buildJoinValue).add(buildRecord);
+        }
+
+        for (Record probeRecord : probeRecords) {
+            DataBox probeJoinValue = probeRecord.getValue(probeColumnIndex);
+            if (!hashTable.containsKey(probeJoinValue)) {
+                continue;
+            }
+            List<Record> matchRecords = hashTable.get(probeJoinValue);
+            for (Record matchRecord : matchRecords) {
+                Record record;
+                if (!probeFirst) {
+                    record = matchRecord.concat(probeRecord);
+                } else {
+                    record = probeRecord.concat(matchRecord);
+                }
+                this.joinedRecords.add(record);
+            }
+        }
     }
 
     /**
@@ -136,6 +175,14 @@ public class GHJOperator extends JoinOperator {
             // TODO(proj3_part1): implement the rest of grace hash join
             // If you meet the conditions to run the build and probe you should
             // do so immediately. Otherwise you should make a recursive call.
+            Partition leftPartition = leftPartitions[i];
+            Partition rightPartition = rightPartitions[i];
+            int limit = this.numBuffers - 2;
+            if (leftPartition.getNumPages() <= limit || rightPartition.getNumPages() <= limit) {
+                buildAndProbe(leftPartition, rightPartition);
+            } else {
+                run(leftPartition, rightPartition, pass + 1);
+            }
         }
     }
 
@@ -203,6 +250,15 @@ public class GHJOperator extends JoinOperator {
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that
         // SHJ breaks when trying to join them but not GHJ
+
+        // SHJ会在分区中页数大于B-2时崩溃
+        // 因此只需要往一个分区中填入4*8+1=33个数据即可
+        for(int i = 0; i < 33; i++) {
+            leftRecords.add(createRecord(1));
+        }
+        // GHJ只要有一张表的分区数据页小于B-2就不会加深pass
+        // 因此这里在右表只放1个数据，确保不需要多次递归
+        rightRecords.add(createRecord(1));
         return new Pair<>(leftRecords, rightRecords);
     }
 
@@ -223,7 +279,14 @@ public class GHJOperator extends JoinOperator {
         ArrayList<Record> leftRecords = new ArrayList<>();
         ArrayList<Record> rightRecords = new ArrayList<>();
         // TODO(proj3_part1): populate leftRecords and rightRecords such that GHJ breaks
-
+        // 首先同样要让表数据页大小超过缓冲区数-2
+        // 但在本题中，但要让GHJ提高pass，必须让两张表都满足上述条件
+        // 而对于GHJ来说，如果表中均为冗余数据，则会不断造成无效分区，pass急速增加
+        // 因此，在两表中添加大量冗余数据即可达成目标。
+        for(int i = 0; i < 33; i++) {
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(1));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 }

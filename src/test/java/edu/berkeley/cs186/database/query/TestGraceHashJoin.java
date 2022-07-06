@@ -175,7 +175,6 @@ public class TestGraceHashJoin {
 
             List<Record> output = new ArrayList<>();
             for (Record record: ghj) output.add(record);
-
             assertEquals(1674, output.size());
 
             for (Record r : output) {
