@@ -577,6 +577,27 @@ public class QueryPlan {
         QueryOperator minOp = new SequentialScanOperator(this.transaction, table);
 
         // TODO(proj3_part2): implement
+
+        // 1. 获取sequential scan的io开销
+        int cost = minOp.estimateIOCost();
+        // 2. 获取这张表上的索引
+        List<Integer> indexColumns = getEligibleIndexColumns(table);
+        // 在使用索引查询时，标记此刻使用的索引
+        int skipIndex = -1;
+        // 遍历所有的索引
+        for (Integer indexColumn : indexColumns) {
+            SelectPredicate pre = selectPredicates.get(indexColumn);
+            // 新建一个索引查找并估算它的io开销，与现有最小的io开销对比
+            IndexScanOperator indexScanOperator = new IndexScanOperator(transaction, table, pre.column, pre.operator, pre.value);
+            int ioCost = indexScanOperator.estimateIOCost();
+            if (ioCost < cost) {
+                minOp = indexScanOperator;
+                cost = ioCost;
+                skipIndex = indexColumn;
+            }
+        }
+        // push down所有的除索引外的选择
+        minOp = addEligibleSelections(minOp, skipIndex);
         return minOp;
     }
 
@@ -646,6 +667,55 @@ public class QueryPlan {
         //      calculate the cheapest join with the new table (the one you
         //      fetched an operator for from pass1Map) and the previously joined
         //      tables. Then, update the result map if needed.
+
+        // pass1Map存储的是一张单一的表和它的遍历方式
+        // 遍历已经做过join操作的表，即左深树的左边结点
+        for (Set<String> tables : prevMap.keySet()) {
+            // 遍历join谓词
+            for (JoinPredicate joinPredicate : joinPredicates) {
+                String leftColumn = joinPredicate.leftColumn;
+                String leftTable = joinPredicate.leftTable;
+                String rightColumn = joinPredicate.rightColumn;
+                String rightTable = joinPredicate.rightTable;
+                QueryOperator leftOp = null;
+                QueryOperator rightOp = null;
+                HashSet<String> set = new HashSet<>(tables);
+                QueryOperator op = null;
+
+                // 如果右表为还没有被join的表，则将其从pass1Map中提取出来
+                if (tables.contains(leftTable) && !tables.contains(rightTable)) {
+                    leftOp = prevMap.get(tables);
+                    for (Set<String> rTables : pass1Map.keySet()) {
+                        if (rTables.contains(rightTable)) {
+                            rightOp = pass1Map.get(rTables);
+                        }
+                    }
+                    set.add(rightTable);
+                    op = minCostJoinType(leftOp, rightOp, leftColumn, rightColumn);
+                } else if (!tables.contains(leftTable) && tables.contains(rightTable)) {
+                    rightOp = prevMap.get(tables);
+                    for (Set<String> lTables : pass1Map.keySet()) {
+                        if (lTables.contains(leftTable)) {
+                            leftOp = pass1Map.get(lTables);
+                        }
+                    }
+                    set.add(leftTable);
+                    op = minCostJoinType(rightOp, leftOp, rightColumn, leftColumn);
+                } else {
+                    continue;
+                }
+//                QueryOperator op = minCostJoinType(leftOp, rightOp, leftColumn, rightColumn);
+//                System.out.println(op.toString());
+                int oldCost = Integer.MAX_VALUE;
+                if (result.containsKey(set)) {
+                    QueryOperator oldOp = result.get(set);
+                    oldCost = oldOp.estimateIOCost();
+                }
+                if (op.estimateIOCost() < oldCost) {
+                    result.put(set, op);
+                }
+            }
+        }
         return result;
     }
 
@@ -688,14 +758,32 @@ public class QueryPlan {
         // the table. Construct a mapping of each table name to its lowest cost
         // operator.
         //
+        Map<Set<String>, QueryOperator> pass1Map = new HashMap<>();
+        for (String tableName : tableNames) {
+            QueryOperator op = minCostSingleAccess(tableName);
+            Set<String> tables = new HashSet<>();
+            tables.add(tableName);
+            pass1Map.put(tables, op);
+        }
         // Pass i: On each pass, use the results from the previous pass to find
         // the lowest cost joins with each table from pass 1. Repeat until all
         // tables have been joined.
         //
+        Map<Set<String>, QueryOperator> prevMap = Map.copyOf(pass1Map);
+        while (prevMap.size() != 1) {
+            prevMap = minCostJoins(prevMap, pass1Map);
+        }
+
         // Set the final operator to the lowest cost operator from the last
         // pass, add group by, project, sort and limit operators, and return an
         // iterator over the final operator.
-        return this.executeNaive(); // TODO(proj3_part2): Replace this!
+        this.finalOperator = minCostOperator(prevMap);
+
+        this.addGroupBy();
+        this.addProject();
+        this.addSort();
+        this.addLimit();
+        return finalOperator.iterator();
     }
 
     // EXECUTE NAIVE ///////////////////////////////////////////////////////////
