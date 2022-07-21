@@ -405,7 +405,6 @@ public class TestLockManager {
          *    All transactions should be unblocked
          */
         runner.run(1, () -> lockman.release(transactions[1], dbResource));
-
         // Lock check
         assertEquals(Collections.singletonList(new Lock(dbResource, LockType.S, 2L)),
                      lockman.getLocks(dbResource));
