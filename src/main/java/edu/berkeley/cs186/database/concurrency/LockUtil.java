@@ -41,9 +41,55 @@ public class LockUtil {
         LockType effectiveLockType = lockContext.getEffectiveLockType(transaction);
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
+        if (explicitLockType == requestType) {
+            return;
+        }
+
+        // 如果当前隐式的锁类型已经满足需要，就不做任何操作
+        if (LockType.substitutable(effectiveLockType, requestType)) {
+            return;
+        }
+
+        // 确保父级已经获取了前置锁
+        if (parentContext != null) {
+            LockType parentLock = LockType.parentLock(requestType);
+            ensureAncestorLock(parentContext, parentLock, transaction);
+        }
+
+        if (explicitLockType == LockType.IX && requestType == LockType.S) {
+            lockContext.promote(transaction, LockType.SIX);
+            return;
+        }
+
+        if (explicitLockType.isIntent()) {
+            lockContext.escalate(transaction);
+            return;
+        }
+
+        if (explicitLockType == LockType.NL) {
+            lockContext.acquire(transaction, requestType);
+        } else {
+            lockContext.promote(transaction, requestType);
+        }
+
         // TODO(proj4_part2): implement
         return;
     }
 
     // TODO(proj4_part2) add any helper methods you want
+    private static void ensureAncestorLock(LockContext parent, LockType requestType, TransactionContext transaction) {
+        if (parent == null || requestType == null) return;
+        LockType effectiveLockType = parent.getEffectiveLockType(transaction);
+        LockType explicitLockType = parent.getExplicitLockType(transaction);
+        if (LockType.substitutable(explicitLockType, requestType) || LockType.substitutable(effectiveLockType, requestType))
+            return;
+        LockContext grandContext = parent.parentContext();
+        LockType grandLock = LockType.parentLock(requestType);
+        ensureAncestorLock(grandContext, grandLock, transaction);
+        if (explicitLockType == LockType.NL) {
+            parent.acquire(transaction, requestType);
+        } else {
+            parent.promote(transaction, requestType);
+        }
+    }
 }

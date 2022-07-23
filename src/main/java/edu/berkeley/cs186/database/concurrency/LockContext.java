@@ -105,7 +105,7 @@ public class LockContext {
             throw new InvalidLockException("invalid request");
         }
         if (existLock != LockType.NL && !LockType.canBeParentLock(existLock, lockType)) {
-            throw new InvalidLockException("invalid lock");
+            throw new InvalidLockException("invalid lock, exist lock: " + existLock + " request lock: " + lockType);
         }
         lockman.acquire(transaction, name, lockType);
         increaseChildLockNum(transaction, parent, 1);
@@ -190,13 +190,13 @@ public class LockContext {
 
         if (newLockType == LockType.SIX) {
             List<ResourceName> names = sisDescendants(transaction);
-            for (ResourceName resourceName : names) {
-                lockman.release(transaction, resourceName);
-            }
+            names.add(name);
             decreaseChildLockNum(transaction, this, names.size());
+            lockman.acquireAndRelease(transaction, name, newLockType, names);
+            increaseChildLockNum(transaction, this, 1);
+        } else {
+            lockman.promote(transaction, name, newLockType);
         }
-        lockman.promote(transaction, name, newLockType);
-
         return;
     }
 
@@ -244,12 +244,14 @@ public class LockContext {
         }
 
         List<ResourceName> names = allChildrenNames(transaction);
-
+        names.add(name);
         decreaseChildLockNum(transaction, this, names.size());
         if (existLockType == LockType.IS) {
             lockman.acquireAndRelease(transaction, name, LockType.S, names);
+            increaseChildLockNum(transaction, this, 1);
         } else if (existLockType == LockType.IX || existLockType == LockType.SIX) {
             lockman.acquireAndRelease(transaction, name, LockType.X, names);
+            increaseChildLockNum(transaction, this, 1);
         }
         return;
     }
