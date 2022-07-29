@@ -41,7 +41,7 @@ public class LockUtil {
         LockType effectiveLockType = lockContext.getEffectiveLockType(transaction);
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
-        if (explicitLockType == requestType) {
+        if (LockType.substitutable(explicitLockType, requestType)) {
             return;
         }
 
