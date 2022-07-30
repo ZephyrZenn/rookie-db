@@ -1382,8 +1382,10 @@ public class TestRecoveryManager {
 
         // 3. Run all three phases of recovery
         recoveryManager.restart(); // run everything in restart recovery
-
         Iterator<LogRecord> logs = logManager.iterator();
+//        while (logs.hasNext()) {
+//            System.out.println(logs.next());
+//        }
         assertEquals(LogType.MASTER, logs.next().getType());
         assertEquals(LogType.BEGIN_CHECKPOINT, logs.next().getType());
         assertEquals(LogType.END_CHECKPOINT, logs.next().getType());
